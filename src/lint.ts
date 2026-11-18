@@ -35,7 +35,7 @@ const KNOWN_ACRONYMS = /^(?:CISA|NIST|API|MCP|CVE|AI|USA|EU|UK|GDPR|HTTPS?|JSON|
 const CLAUSE_START = String.raw`(?:^|[.!?\n;:,]\s*|\b(?:please|pls|plz|and|so|now|also|news|guys|everyone)\s+)`;
 const BAIT_ERROR_RE = new RegExp(
   CLAUSE_START +
-    String.raw`(?:(?:like|rt|retweet|repost|share|bookmark)\s+(?:this\s+)?if\s+you\b|follow\s+(?:me|us)\s+(?:on\s+\S+\s+)?(?:for|and|to|if)\b|follow\s+for\s+(?:more|follow|updates|daily)\b|f4f\b|follow\s*4\s*follow\b|tag\s+(?:a|your|two|three|\d+)\s+(?:friends?|mates?|buddy|buddies|colleagues?|someone)\b|smash\s+that\b|hit\s+(?:the\s+)?(?:like|follow)\s+button\b|(?:like|rt|retweet|repost|share)\s+(?:and|&)\s+(?:rt|retweet|repost|share|follow|subscribe)\b|like\s+for\s+(?:a|more|part)\b)`,
+    String.raw`(?:(?:like|rt|retweet|repost|share|bookmark)\s+(?:this\s+)?if\s+(?:you|this|it|that)\b|follow\s+(?:me|us)\s+(?:on\s+\S+\s+)?(?:for|and|if)\b|follow\s+for\s+(?:more|follow|updates|daily)\b|f4f\b|follow\s*4\s*follow\b|tag\s+(?:a|your|two|three|\d+)\s+(?:friends?|mates?|buddy|buddies|colleagues?|someone)\b|smash\s+that\b|hit\s+(?:the\s+)?(?:like|follow)\s+button\b|(?:like|rt|retweet|repost|share)\s+(?:and|&)\s+(?:rt|retweet|repost|share|follow|subscribe)\b(?=\s*(?:[.!?,;:)]|$|if\b|for\b|please\b|this\b|to\s+(?:support|help)\b|with\s+(?:your|a)\b))|like\s+for\s+(?:a|more|part)\b)`,
   'i',
 );
 const BAIT_WARN_RE =
