@@ -1,0 +1,20 @@
+{
+  "name": "@neyralabs/x-skill",
+  "version": "0.1.0",
+  "description": "Agent Skill for running an X (x.com) account by hand, grounded in X's published For You ranking code. Offline TypeScript tools: post lint, thread splitter, slot planner, analytics report. No API keys, no auto-posting.",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "xskill": "tsx scripts/xskill.ts",
+    "check": "npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  }
+}

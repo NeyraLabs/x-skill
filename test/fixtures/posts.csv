@@ -1,0 +1,5 @@
+Date,Post text,Impressions,Likes,Engagements,Replies,Reposts,Quotes,Shares,Bookmarks,New follows,Url clicks
+2026-11-16,"Link post: https://example.com/a",1200,3,9,0,1,0,0,2,0,3
+2026-11-17,"Question post: which of these three do you run?",900,6,21,5,2,1,2,2,1,0
+2026-11-17,"Number post, 51 findings, 0 critical, per our scan",1500,9,30,2,4,1,1,5,1,2
+2026-11-18,"Shouty post, no source",1000,2,4,0,0,0,0,0,0,0
