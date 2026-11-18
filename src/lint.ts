@@ -82,14 +82,14 @@ export function lint(text: string, opts: LintOptions = {}): Finding[] {
 
   const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
   const firstLine = lines[0] ?? '';
-  // The hook is the first line of a multi-line post, or the first sentence of a one-line post.
-  const hook = lines.length > 1 ? firstLine : (firstLine.split(/(?<=[.!?])\s+(?=\S)/)[0] ?? firstLine);
+  // The hook is the first sentence of the first line: what a reader takes in before deciding to stay.
+  const hook = firstLine.split(/(?<=[.!?])\s+(?=\S)/)[0] ?? firstLine;
   const firstCount = countPost(hook, limit).weighted;
   if (firstCount > 140) {
     push(
       'hook-length',
       'warn',
-      `The hook (first line or first sentence) weighs ${firstCount}; keep it under 140 so it reads in one glance.`,
+      `The first sentence weighs ${firstCount}; keep it under 140 so it reads in one glance.`,
       'The model predicts dwell and "not dwelled" per post; the first line decides whether the reader pauses. Reader behaviour, not a published number.',
     );
   }

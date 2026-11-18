@@ -116,7 +116,8 @@ test('a number with no source word is info, not an error', () => {
 test('first-line link and long hook warn', () => {
   assert.ok(rules('https://example.com/a\nthen some words that explain it well enough').includes('hook-link'));
   assert.ok(rules('w'.repeat(150) + '\nmore').includes('hook-length'));
-  // a one-line post with a short first sentence is fine
+  // a short first sentence is fine, in a one-line post or a multi-line one
   assert.ok(!rules('Short claim. ' + 'w '.repeat(100)).includes('hook-length'));
+  assert.ok(!rules('Short claim. ' + 'w '.repeat(60) + '\n\nsecond paragraph').includes('hook-length'));
   assert.ok(rules('w '.repeat(100)).includes('hook-length'));
 });
