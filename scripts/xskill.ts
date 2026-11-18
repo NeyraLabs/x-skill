@@ -62,7 +62,7 @@ function out(obj: unknown, flags: Flags, human: () => void): void {
 
 function cmdLint(positional: string[], flags: Flags): number {
   const text = readInput(positional[0]);
-  const limit = num(flags, 'limit', 280);
+  const limit = num(flags, 'limit', 280, { min: 1, integer: true });
   const banned = (str(flags, 'banned') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   const findings = lint(text, { limit, banned, allowLinkOnly: Boolean(flags['allow-link-only']) });
   const count = countPost(text.trim(), limit);
@@ -80,7 +80,7 @@ function cmdLint(positional: string[], flags: Flags): number {
 
 function cmdThread(positional: string[], flags: Flags): number {
   const text = readInput(positional[0]);
-  const limit = num(flags, 'limit', 280);
+  const limit = num(flags, 'limit', 280, { min: 1, integer: true });
   const numberingFlag = str(flags, 'number');
   const numbering = numberingFlag === 'slash' || numberingFlag === 'of' ? numberingFlag : 'none';
   const posts = splitThread(text, { limit, numbering });
@@ -104,7 +104,7 @@ function cmdPlan(positional: string[], flags: Flags): number {
   const utcOffset = str(flags, 'offset');
   if (!start || !utcOffset) throw new UsageError('plan needs --start YYYY-MM-DD and --offset +08:00');
   const slots = (str(flags, 'slots') ?? '09:30,14:30,22:30').split(',').map((s) => s.trim()).filter(Boolean);
-  const scheduled = plan(posts, { start, utcOffset, slots, minGapHours: num(flags, 'gap', 3), awake: awakeFrom(flags) });
+  const scheduled = plan(posts, { start, utcOffset, slots, minGapHours: num(flags, 'gap', 3, { min: 0 }), awake: awakeFrom(flags) });
   out(scheduled, flags, () => {
     for (const s of scheduled) {
       console.log(`${s.local}  ${s.text.replace(/\s+/g, ' ').slice(0, 70)}`);
@@ -121,18 +121,18 @@ function cmdAudit(positional: string[], flags: Flags): number {
     if (t && typeof t === 'object' && typeof (t as { local?: unknown }).local === 'string') return t as { local: string };
     throw new UsageError(`Entry ${i + 1} is neither a string nor an object with a "local" string`);
   });
-  const notes = audit(times, { minGapHours: num(flags, 'gap', 3), awake: awakeFrom(flags) });
+  const notes = audit(times, { minGapHours: num(flags, 'gap', 3, { min: 0 }), awake: awakeFrom(flags) });
   out({ notes }, flags, () => {
     if (notes.length === 0) console.log('ok: no stacked or sleep-hour posts');
     for (const n of notes) console.log(`! ${n}`);
   });
-  return 0;
+  return notes.some((n) => n.startsWith('Cannot parse')) ? 2 : 0;
 }
 
 function cmdAnalytics(positional: string[], flags: Flags): number {
   const table = parseCsv(readInput(positional[0]));
   if (table.headers.length === 0) throw new UsageError('The CSV has no header row');
-  const summary = summarize(table, num(flags, 'top', 10));
+  const summary = summarize(table, num(flags, 'top', 10, { min: 1, integer: true }));
   out(summary, flags, () => {
     console.log(`${summary.rows} rows; columns found: ${summary.found.join(', ') || 'none'}; missing: ${summary.missing.join(', ') || 'none'}`);
     console.log('totals:', Object.entries(summary.totals).map(([k, v]) => `${k}=${v}`).join('  '));

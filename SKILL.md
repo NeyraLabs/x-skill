@@ -22,7 +22,7 @@ Source: https://github.com/xai-org/x-algorithm (Apache-2.0): the README, `home-m
 | action | weight |
 | --- | ---: |
 | share via copy link | 20.0 |
-| reply | 5.0 (20.0 when viewer and author follow each other) |
+| reply | 5.0 (20.0 on an original post, not a reply or repost, when viewer and author follow each other) |
 | quote | 5.0 |
 | share via DM | 5.0 |
 | follow author | 4.0 |
@@ -48,8 +48,8 @@ Source: https://github.com/xai-org/x-algorithm (Apache-2.0): the README, `home-m
 
 - *Author diversity* (each further post by one author in a feed load decays toward a floor): **off** in `value_model.rs` (`enable_author_diversity: false`, decay 1.0, floor 1.0).
 - *Out-of-network discount* (posts from authors the viewer does not follow are multiplied by a factor below 1; the README says the same for replies and reposts from followed authors): the factor for non-followed authors is applied in `xai-value-model/scoring.rs`, value not in the public params; rescoring in-network replies and reposts is **off** by default.
-- *New-author boost* (authors under an impression threshold are lifted toward a target position): parameters in `param.rs` (`cold_start_slot_min` 15, `cold_start_slot_max` 16, `cold_start_follower_cap` 50000, `cold_start_max_post_age_secs` 7200, `low_impressions_max_boost_position_ratio` 0.97), logic in `home-mixer/scorers/author_cold_start.rs`.
-- *VMRanker* reorders results with a determinantal point process over embeddings (separate service).
+- *New-author boost* (authors under an impression threshold are lifted toward a target position): parameters in `param.rs` (`cold_start_impression_threshold` 200, `cold_start_slot_min` 15, `cold_start_slot_max` 16, `cold_start_follower_cap` 50000, `cold_start_max_post_age_secs` 7200, `low_impressions_max_boost_position_ratio` 0.97, `enable_viewer_cold_start_boost` true), logic in `home-mixer/scorers/author_cold_start.rs`, not summarised here.
+- *VMRanker* reorders results with a determinantal point process over embeddings, "giving up a little score for less similarity between neighbours" (separate service).
 
 **Filters:** posts older than 48 hours are dropped before scoring; so are the viewer's own posts, posts from blocked or muted accounts, posts with muted keywords, and posts already seen. Visibility filtering runs after ranking and can drop a post entirely.
 
@@ -61,11 +61,11 @@ Source: https://github.com/xai-org/x-algorithm (Apache-2.0): the README, `home-m
 2. **Make it worth forwarding.** "Share via copy link" carries the largest positive weight in the file. Posts people send to a colleague contain a fact, a figure or a tool they can defend.
 3. **Be there in the first hours.** A post is scored for at most 48 hours. Answer replies while the post is live; do not publish just before you sleep.
 4. **Space your posts.** Not because the code punishes stacking (author-diversity decay is off in the public defaults) but because each post needs its own reply window and your followers' attention. Three hours apart is a sane floor; `xskill plan` enforces it.
-5. **Reposts and replies are not originals.** Reaching people who do not follow you is discounted. Repost when the content deserves it; quote with an added fact when you want your own readers to see your point.
+5. **Originals carry your voice; reposts carry someone else's.** In the public defaults your replies and reposts are not discounted for your own followers, but a repost puts another author's post in their feed, and reaching people who do not follow you is discounted whatever the format. Repost when the content deserves it; quote with an added fact when the point should be yours.
 6. **Never bait.** "Like if", "follow for more", "tag a friend", sirens and all-caps are engagement farming under X's rules and invite the actions the model weights negatively. `xskill lint` blocks them.
 7. **Links are fine, link-only posts are not.** There is no link penalty in the public code; opening a link has a small positive weight. A post that is only a link invites one action and no conversation. Say what the reader will find, then link, or put the link in the first reply.
 8. **Small accounts get a lift, not a licence.** The cold-start boost places a fresh post from a small account into the feed. It is not a reason to spin up accounts; that is manipulation.
-9. **Follow people you read.** When viewer and author follow each other, the code weights that viewer's predicted reply higher. That is a description of how conversations between people who know each other are treated, not a lever: follow for the conversation, never for the count.
+9. **Follow people you read.** When viewer and author follow each other, the code weights that viewer's predicted reply on the author's original posts higher. That describes how conversations between people who know each other are treated; it is not a lever. Follow for the conversation, never for the count.
 10. **Measure what the model predicts.** Replies, quotes, shares and follows per thousand impressions, not likes. `xskill analytics` reads the CSV you export from X.
 
 ## 3. Daily workflow

@@ -72,10 +72,11 @@ export const ACTION_WEIGHTS: readonly ActionWeight[] = [
 ];
 
 /**
- * Boosts in param.rs. xai-value-model/weights.rs applies the reply boost
- * to the reply weight of a candidate post when the viewer and the post's
- * author follow each other: for such a viewer, P(reply) on that post is
- * weighted 5.0 + 15.0.
+ * Boosts in param.rs. xai-value-model/weights.rs adds the reply boost to the
+ * reply weight when the candidate is "bidirectional boost eligible", which
+ * inputs.rs defines as: not a reply, not a repost, and the viewer and the
+ * author follow each other. So for a mutual follower, P(reply) on your
+ * ORIGINAL post is weighted 5.0 + 15.0; your replies and reposts never get it.
  */
 export const BOOSTS = {
   bidirectional_follow_reply_weight_boost: 15.0,
@@ -103,7 +104,7 @@ export const ADJUSTMENTS = [
   {
     name: 'New-author boost (cold start)',
     readme: 'posts from authors whose impressions are below a threshold are lifted toward a target position',
-    status: 'Parameters in param.rs: cold_start_slot_min 15, cold_start_slot_max 16, cold_start_follower_cap 50000, cold_start_max_post_age_secs 7200, low_impressions_max_boost_position_ratio 0.97. Logic in home-mixer/scorers/author_cold_start.rs.',
+    status: 'Parameters in param.rs: cold_start_impression_threshold 200, cold_start_slot_min 15, cold_start_slot_max 16, cold_start_follower_cap 50000, cold_start_max_post_age_secs 7200, low_impressions_max_boost_position_ratio 0.97, enable_viewer_cold_start_boost true. Logic in home-mixer/scorers/author_cold_start.rs (not summarised here).',
     meaning: 'A small account with a fresh post can be placed into the feed. It is not a reason to create accounts; that breaks the rules.',
   },
   {
@@ -114,9 +115,9 @@ export const ADJUSTMENTS = [
   },
   {
     name: 'VMRanker',
-    readme: 'reorders results using a determinantal point process over embeddings',
+    readme: 'reorders results with a determinantal point process over embeddings, giving up a little score for less similarity between neighbours',
     status: 'Separate service in vm-ranker/; not reproduced here.',
-    meaning: 'Similar posts in one feed load are spread apart. Posting the same idea twice in a row buys nothing.',
+    meaning: 'Neighbouring posts in a feed load are nudged apart when they are similar. A small effect by the README\'s own words; not a reason to post the same idea twice.',
   },
 ] as const;
 

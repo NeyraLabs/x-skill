@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs } from '../src/args.js';
+import { parseArgs, num } from '../src/args.js';
 
 test('boolean flags do not swallow the next word', () => {
   const a = parseArgs(['lint', '--json', 'draft.txt']);
@@ -21,4 +21,13 @@ test('value flags, --key=value and -- terminator', () => {
 
 test('a value flag at the end becomes true', () => {
   assert.equal(parseArgs(['lint', 'f', '--limit']).flags.limit, true);
+});
+
+test('numeric flags are validated when present', () => {
+  assert.equal(num({}, 'gap', 3), 3);
+  assert.equal(num({ gap: '2.5' }, 'gap', 3), 2.5);
+  assert.throws(() => num({ gap: 'abc' }, 'gap', 3), /needs a number/);
+  assert.throws(() => num({ gap: '-5' }, 'gap', 3, { min: 0 }), /at least 0/);
+  assert.throws(() => num({ limit: '2.5' }, 'limit', 280, { integer: true }), /whole number/);
+  assert.throws(() => num({ gap: true }, 'gap', 3), /needs a number/);
 });

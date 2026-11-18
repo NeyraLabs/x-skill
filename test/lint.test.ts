@@ -15,8 +15,25 @@ test('over-length is an error', () => {
 });
 
 test('engagement bait is an error', () => {
-  for (const t of ['Like if you agree', 'Follow for more', 'Tag a friend who needs this', 'Comment below!', 'RT if you remember']) {
+  for (const t of [
+    'Like if you agree',
+    'Follow for more',
+    'Tag a friend who needs this',
+    'RT if you remember',
+    'Big news RT if you agree',
+    'If you agree please like and RT',
+    'Follow me for daily tips',
+    'f4f anyone',
+  ]) {
     assert.ok(rules(t).includes('bait'), t);
+  }
+});
+
+test('ambiguous asks are a warning to check, not an error', () => {
+  for (const t of ['Comment below with your CVE ID', 'Thoughts? please comment below', 'Results are in. Follow back policies vary.']) {
+    const f = lint(t);
+    assert.ok(f.some((x) => x.rule === 'bait-check' && x.severity === 'warn'), t);
+    assert.ok(!f.some((x) => x.rule === 'bait'), t);
   }
 });
 
@@ -27,8 +44,12 @@ test('ordinary uses of like, follow and share are not bait', () => {
     'Easy to share to your team.',
     'Prices drop a lot in winter.',
     'Which rule do you follow for secrets?',
+    'Like and dislike counts are both public now, per the 2024 data.',
+    'Share for the web rose 4% per StatCounter.',
+    'To escalate, tag a moderator in the thread.',
   ]) {
     assert.ok(!rules(t).includes('bait'), t);
+    assert.ok(!rules(t).includes('bait-check'), t);
   }
 });
 

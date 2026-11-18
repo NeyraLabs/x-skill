@@ -50,14 +50,14 @@ The comment above the weights in `param.rs` says, in short: the weights reflect 
 | mute_author | −58.8 |
 | report | −234.0 |
 
-Boosts in the same file: `bidirectional_follow_reply_weight_boost` = 15.0, `bidirectional_follow_dwell_weight_boost` = 0.0. In `xai-value-model/weights.rs`, `reply_weight_for` returns `reply + bidirectional_follow_reply_weight_boost` when the candidate is "bidirectional boost eligible" (the viewer and the post's author follow each other); otherwise `reply`.
+Boosts in the same file: `bidirectional_follow_reply_weight_boost` = 15.0, `bidirectional_follow_dwell_weight_boost` = 0.0. In `xai-value-model/weights.rs`, `reply_weight_for` returns `reply + bidirectional_follow_reply_weight_boost` when the candidate is "bidirectional boost eligible"; `xai-value-model/inputs.rs` defines that as `!is_reply && !is_retweet && is_mutual_follow_author`. Replies and reposts never receive the boost.
 
 ## Adjustments (README) and their defaults (`home-mixer/scorers/value_model.rs`, `param.rs`)
 
 - Author diversity. README: "each post after an author's first is multiplied by a decaying factor, down to a floor". Defaults: `enable_author_diversity: false`, `author_diversity_decay: 1.0`, `author_diversity_floor: 1.0`. Off.
 - Out-of-network discount. README: "posts from accounts the viewer does not follow are multiplied by a factor below 1, as are replies and reposts from accounts the viewer does follow". Code: `scoring.rs` applies `effective_oon_weight` when `oon_applies`; for in-network replies and reposts that depends on `oon_rescore_in_network_replies_retweets`, which defaults to `false`. The numeric out-of-network factor is a runtime parameter not located in the public params.
-- New-author boost (cold start). README: "posts from authors whose impressions are below a threshold are lifted toward a target position". `param.rs`: `cold_start_slot_min` 15, `cold_start_slot_max` 16, `cold_start_follower_cap` 50000, `cold_start_max_post_age_secs` 7200, `low_impressions_max_boost_position_ratio` 0.97. Logic in `home-mixer/scorers/author_cold_start.rs` (not summarised here).
-- VMRanker (`vm-ranker/`): reorders results with a determinantal point process over embeddings.
+- New-author boost (cold start). README: "posts from authors whose impressions are below a threshold are lifted toward a target position". `param.rs`: `cold_start_impression_threshold` 200, `cold_start_slot_min` 15, `cold_start_slot_max` 16, `cold_start_follower_cap` 50000, `cold_start_max_post_age_secs` 7200, `low_impressions_max_boost_position_ratio` 0.97, `enable_viewer_cold_start_boost` true; further Thompson-sampling parameters sit next to them. Logic in `home-mixer/scorers/author_cold_start.rs` (not summarised here).
+- VMRanker (`vm-ranker/`): reorders results with a determinantal point process over embeddings, "giving up a little score for less similarity between neighbours".
 
 Other values in `param.rs`: `new_user_min_engagement_filter_max_account_age_secs` 1800; `new_user_soft_nsfw_filter_max_account_age_secs` 604800.
 

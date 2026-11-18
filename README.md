@@ -40,14 +40,16 @@ npx tsx scripts/xskill.ts analytics account_overview_analytics.csv
 npx tsx scripts/xskill.ts weights
 ```
 
-`lint` output, for example:
+`lint` output for the draft `Follow for more. https://example.com/a`:
 
 ```
-length 62/280 (218 left), 1 url
+length 40/280 (240 left), 1 url
 WARN  link-only: The post is a link with fewer than 40 characters of text.
       why: There is no link penalty in the public code (open_link has a positive weight), but a link-only post invites one action and no conversation. Say what the reader will find, or put the link in a reply.
-ERROR bait: Engagement bait detected ("like if", "follow for more", "tag a friend", "comment below" and similar).
+ERROR bait: Engagement bait ("RT if you agree", "follow for more", "tag a friend", "like and share" and similar).
       why: X's rules name engagement farming as platform manipulation. In the model, bait invites the actions with negative weights (not interested, mute, report) from the readers you want to keep.
+INFO  no-invitation: No question or invitation to answer. Fine for a plain statement; consider one specific question.
+      why: Reply and quote are among the actions the model is built to predict, with higher weights than like. The weights are not count ratios, but the direction is clear: the feed is tuned for conversation.
 ```
 
 Every finding says why: a published weight, an X rule, or plain reader behaviour, named as such. `lint` exits 1 on an error so you can use it as a gate, 2 on a usage error. Character counting follows X's weighted rules: URLs count 23, CJK and emoji count 2.
@@ -72,7 +74,7 @@ import { lint, splitThread, plan, summarize, parseCsv, ACTION_WEIGHTS } from './
 | `src/analytics.ts` | CSV parser and summary for X's analytics exports |
 | `src/value-model.ts` | the published weights as data |
 | `scripts/xskill.ts` | the CLI |
-| `test/` | 41 tests, `node:test` |
+| `test/` | 45 tests, `node:test` |
 
 ## Principles
 

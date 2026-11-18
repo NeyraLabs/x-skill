@@ -108,11 +108,12 @@ export function plan(posts: readonly PlanPost[], opts: PlanOptions): Scheduled[]
 
   const taken: number[] = [];
   const out: Scheduled[] = [];
-  for (const [index, post] of posts.entries()) {
+  type Cand = { epochMs: number; date: string; slot: string };
+
+  // Validate preferences once, so the pass order below is decided on valid ones.
+  const prepared = posts.map((post, index) => {
     if (typeof post.text !== 'string') throw new Error(`Post ${index + 1} has no text`);
     const warnings: string[] = [];
-
-    // Validate preferences; a bad one is reported, then ignored.
     let wantDate = post.date;
     let wantSlot = post.slot;
     if (wantDate !== undefined && !validDate(wantDate)) {
@@ -127,10 +128,14 @@ export function plan(posts: readonly PlanPost[], opts: PlanOptions): Scheduled[]
       warnings.push(`Preferred date ${wantDate} is outside the ${horizon}-day horizon from ${opts.start}; ignored.`);
       wantDate = undefined;
     }
-
-    const matches = (c: { date: string; slot: string }) => (!wantDate || c.date === wantDate) && (!wantSlot || c.slot === wantSlot);
-    const free = (c: { epochMs: number }) => !taken.includes(c.epochMs) && gapOk(c.epochMs, taken, minGapMs);
+    const matches = (c: Cand) => (!wantDate || c.date === wantDate) && (!wantSlot || c.slot === wantSlot);
     const wanted = wantDate || wantSlot ? candidates.find(matches) : undefined;
+    return { post, index, warnings, matches, wanted };
+  });
+
+  const place = (item: (typeof prepared)[number]) => {
+    const { post, index, warnings, matches, wanted } = item;
+    const free = (c: Cand) => !taken.includes(c.epochMs) && gapOk(c.epochMs, taken, minGapMs);
     const chosen = candidates.find((c) => matches(c) && free(c)) ?? candidates.find(free);
     if (!chosen) throw new Error(`No free slot within ${horizon} days for post ${index + 1}: ${post.text.slice(0, 40)}…`);
     taken.push(chosen.epochMs);
@@ -140,11 +145,17 @@ export function plan(posts: readonly PlanPost[], opts: PlanOptions): Scheduled[]
       warnings.push(`Slot ${chosen.slot} is outside awake hours ${awakeFrom}:00–${awakeTo}:00; replies in the first hours will go unanswered.`);
     }
     if (wanted && wanted.epochMs !== chosen.epochMs) {
-      warnings.push(`Moved from preferred ${wanted.date} ${wanted.slot} to keep a ${minGapMs / 3_600_000}h gap.`);
+      // chosen was pushed last and differs from wanted, so if wanted is in taken another post holds it
+      const reason = taken.includes(wanted.epochMs) ? 'another post already holds it' : `to keep a ${minGapMs / 3_600_000}h gap`;
+      warnings.push(`Moved from preferred ${wanted.date} ${wanted.slot}: ${reason}.`);
     }
     const { local, iso } = epochToLocal(chosen.epochMs, offsetMin);
     out.push({ text: post.text, local, iso, epochMs: chosen.epochMs, warnings });
-  }
+  };
+
+  // Posts with a preference claim their slot first, in input order; the rest fill in.
+  for (const item of prepared) if (item.wanted) place(item);
+  for (const item of prepared) if (!item.wanted) place(item);
   return out.sort((a, b) => a.epochMs - b.epochMs);
 }
 

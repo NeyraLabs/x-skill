@@ -25,12 +25,16 @@ const MENTION_RE = /(^|\s)@[A-Za-z0-9_]{1,15}\b/g;
 const CAPS_WORD_RE = /\b[A-Z]{4,}\b/g;
 const KNOWN_ACRONYMS = /^(?:CISA|NIST|API|MCP|CVE|AI|USA|EU|UK|GDPR|HTTPS?|JSON|SQL|AWS|GPU|CPU|LLM|OSS|CEO|CTO|CFO|NASA|FBI|OWASP|SDK|CLI|HTML|CSS|NPM|IETF|RFC|ISO|SOC|HIPAA|DNS|TLS|SSH|VPN|IoT|SaaS)$/;
 /**
- * Engagement bait: an imperative asking the reader for an action in exchange
- * for nothing. Anchored at the start of a sentence or line so that "people
- * like this approach" and "I follow this rule" do not trip it.
+ * Engagement bait, two tiers. BAIT_ERROR_RE holds phrases that have no
+ * ordinary reading ("RT if you agree", "follow for more", "f4f"); they are
+ * an error. BAIT_WARN_RE holds phrases that are usually bait but can be an
+ * honest request ("comment below with your CVE", "follow back policies");
+ * they are a warning for the writer to check.
  */
-const BAIT_RE =
-  /(?:^|[.!?\n]\s*|[,;:]\s+)(?:(?:please\s+)?(?:like|rt|retweet|repost|share|bookmark)\s+(?:this\s+)?(?:if|and|&|for|to\s+support)\b|(?:please\s+)?follow\s+(?:me|us|for\s+more|back|for\s+follow)\b|tag\s+(?:a|your|\d+|three|two)\b|comment\s+below\b|drop\s+(?:a|an|your)\s+\S+\s+(?:below|if|in\s+the\s+comments)|smash\s+that\b|hit\s+(?:like|follow|the\s+bell)\b|f4f\b|follow\s*4\s*follow\b)/i;
+const BAIT_ERROR_RE =
+  /\b(?:like|rt|retweet|repost|share|bookmark)\s+(?:this\s+)?if\s+you\b|\bfollow\s+(?:me|us)\s+(?:for|and|to|if)\b|\bfollow\s+for\s+(?:more|follow|updates|daily)\b|\bf4f\b|\bfollow\s*4\s*follow\b|\btag\s+(?:a|your|two|three|\d+)\s+(?:friends?|mates?|buddy|buddies|colleagues?|someone)\b|\bsmash\s+that\b|\bhit\s+(?:the\s+)?(?:like|follow)\s+button\b|\b(?:please\s+)?(?:like|rt|retweet|repost|share)\s+(?:and|&)\s+(?:rt|retweet|repost|share|follow|subscribe)\b|\blike\s+for\s+(?:a|more|part)\b/i;
+const BAIT_WARN_RE =
+  /\bcomment\s+below\b|\bdrop\s+(?:a|an|your)\s+\S+\s+(?:below|in\s+the\s+(?:comments|replies))|\bfollow\s+back\b|\bshare\s+(?:this\s+)?(?:for\s+(?:a\s+chance|more)|to\s+support)\b|\bbookmark\s+this\b|\bretweets?\s+appreciated\b/i;
 const URGENCY_RE = /🚨|\bBREAKING\b|\bURGENT\b|\blast chance\b|\bhurry\b/i;
 const QUESTION_OR_ASK_RE = /\?|\b(?:what do you|which|tell me|how do you|your take|disagree|what would you|anyone)\b/i;
 const SOURCE_CUE_RE = /\b(?:source|per|according|says|said|reports?|published|released|added|study|data|survey|from|via|by)\b|\b[A-Z]{2,}\b|https?:\/\//;
@@ -114,12 +118,19 @@ export function lint(text: string, opts: LintOptions = {}): Finding[] {
     push('emoji', 'warn', `${emoji} emoji; keep it to 2 or fewer.`, 'Each emoji weighs 2 characters and emoji walls are a spam signal to readers.');
   }
 
-  if (BAIT_RE.test(trimmed)) {
+  if (BAIT_ERROR_RE.test(trimmed)) {
     push(
       'bait',
       'error',
-      'Engagement bait detected ("like if", "follow for more", "tag a friend", "comment below" and similar).',
+      'Engagement bait ("RT if you agree", "follow for more", "tag a friend", "like and share" and similar).',
       "X's rules name engagement farming as platform manipulation. In the model, bait invites the actions with negative weights (not interested, mute, report) from the readers you want to keep.",
+    );
+  } else if (BAIT_WARN_RE.test(trimmed)) {
+    push(
+      'bait-check',
+      'warn',
+      'Phrasing that usually reads as bait ("comment below", "follow back", "share to support"). Keep it only if it is a real request with a reason.',
+      'Readers who feel farmed mute; a concrete ask ("reply with the CVE you hit") reads as conversation, a generic one as bait.',
     );
   }
 

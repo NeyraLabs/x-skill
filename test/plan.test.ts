@@ -70,3 +70,18 @@ test('audit reports times it cannot parse', () => {
   assert.equal(notes.length, 1);
   assert.match(notes[0]!, /Cannot parse/);
 });
+
+test('a post with a preference is not pushed out by an earlier post without one', () => {
+  const s = plan([{ text: 'b', slot: '25:00' }, { text: 'g', slot: '14:30', date: '2026-11-19' }], base);
+  const g = s.find((x) => x.text === 'g')!;
+  assert.equal(g.local, '2026-11-19 14:30');
+  assert.equal(g.warnings.length, 0);
+  const b = s.find((x) => x.text === 'b')!;
+  assert.ok(b.warnings.some((w) => w.includes('not one of')));
+});
+
+test('the move reason distinguishes a taken slot from the gap', () => {
+  const s = plan([{ text: 'a', date: '2026-11-19', slot: '14:30' }, { text: 'b', date: '2026-11-19', slot: '14:30' }], base);
+  const b = s.find((x) => x.text === 'b')!;
+  assert.ok(b.warnings.some((w) => w.includes('another post already holds it')), b.warnings.join(' | '));
+});

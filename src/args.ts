@@ -46,8 +46,13 @@ export function str(flags: Flags, key: string): string | undefined {
   return typeof v === 'string' ? v : undefined;
 }
 
-export function num(flags: Flags, key: string, fallback: number): number {
-  const v = str(flags, key);
-  const n = v === undefined ? NaN : Number(v);
-  return Number.isFinite(n) ? n : fallback;
+/** Numeric flag with a default; a present but unusable value throws instead of silently falling back. */
+export function num(flags: Flags, key: string, fallback: number, range: { min?: number; integer?: boolean } = {}): number {
+  const v = flags[key];
+  if (v === undefined) return fallback;
+  const n = typeof v === 'string' ? Number(v) : NaN;
+  if (!Number.isFinite(n)) throw new Error(`--${key} needs a number, got "${String(v)}"`);
+  if (range.integer && !Number.isInteger(n)) throw new Error(`--${key} must be a whole number, got ${n}`);
+  if (range.min !== undefined && n < range.min) throw new Error(`--${key} must be at least ${range.min}, got ${n}`);
+  return n;
 }

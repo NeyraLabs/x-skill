@@ -47,12 +47,13 @@ export function parseCsv(text: string): Table {
     rows.push(row);
   }
   const nonEmpty = rows.filter((r) => r.some((c) => c.trim() !== ''));
-  const seen = new Map<string, number>();
+  const used = new Set<string>();
   const headers = (nonEmpty.shift() ?? []).map((raw) => {
     const h = raw.trim();
-    const n = seen.get(h) ?? 0;
-    seen.set(h, n + 1);
-    return n === 0 ? h : `${h} (${n + 1})`;
+    let name = h;
+    for (let n = 2; used.has(name); n++) name = `${h} (${n})`;
+    used.add(name);
+    return name;
   });
   return {
     headers,

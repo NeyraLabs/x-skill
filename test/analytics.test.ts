@@ -15,8 +15,8 @@ test('csv parser handles quotes, commas and newlines inside fields', () => {
 });
 
 test('duplicate headers are kept apart', () => {
-  const t = parseCsv('a,a,b\n1,2,3\n');
-  assert.deepEqual(t.headers, ['a', 'a (2)', 'b']);
+  const t = parseCsv('a,a,b,a (2)\n1,2,3,4\n');
+  assert.deepEqual(t.headers, ['a', 'a (2)', 'b', 'a (2) (2)']);
   assert.equal(t.rows[0]!['a (2)'], '2');
 });
 
