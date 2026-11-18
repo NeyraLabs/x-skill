@@ -1,7 +1,9 @@
 /**
  * Slot planner. Spreads posts across daily slots so that:
- * - no two posts land closer than `minGapHours` (author diversity decay:
- *   your own posts compete with each other in one feed load);
+ * - no two posts land closer than `minGapHours`, so each post gets its own
+ *   reply window and your followers are not flooded (the author-diversity
+ *   decay in X's README is OFF in the public defaults, so this is an
+ *   operator habit, not an algorithm claim);
  * - every post lands inside your awake hours, so you can answer replies in
  *   the first hours of its 48-hour window.
  * Times are local to the UTC offset you give; output carries ISO strings.
@@ -40,15 +42,22 @@ export interface Scheduled {
   warnings: string[];
 }
 
-const HHMM = /^(\d{2}):(\d{2})$/;
-const YMD = /^(\d{4})-(\d{2})-(\d{2})$/;
-const OFFSET = /^([+-])(\d{2}):(\d{2})$/;
+const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const YMD = /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+const OFFSET = /^([+-])(0\d|1[0-4]):([0-5]\d)$/;
 
 export function parseOffsetMinutes(offset: string): number {
   const m = OFFSET.exec(offset);
   if (!m) throw new Error(`Bad UTC offset "${offset}", expected "+08:00"`);
   const sign = m[1] === '-' ? -1 : 1;
   return sign * (Number(m[2]) * 60 + Number(m[3]));
+}
+
+function validDate(date: string): boolean {
+  const d = YMD.exec(date);
+  if (!d) return false;
+  const t = new Date(Date.UTC(Number(d[1]), Number(d[2]) - 1, Number(d[3])));
+  return t.toISOString().slice(0, 10) === date;
 }
 
 function localToEpoch(date: string, hhmm: string, offsetMin: number): number {
@@ -85,9 +94,10 @@ export function plan(posts: readonly PlanPost[], opts: PlanOptions): Scheduled[]
   const minGapMs = (opts.minGapHours ?? 3) * 3_600_000;
   const [awakeFrom, awakeTo] = opts.awake ?? [8, 23];
   const horizon = opts.horizonDays ?? 14;
-  const slots = [...opts.slots].sort();
+  if (!validDate(opts.start)) throw new Error(`Bad start date "${opts.start}", expected YYYY-MM-DD`);
+  const slots = [...new Set(opts.slots)].sort();
   if (slots.length === 0) throw new Error('At least one slot is required');
-  for (const s of slots) if (!HHMM.test(s)) throw new Error(`Bad slot "${s}"`);
+  for (const s of slots) if (!HHMM.test(s)) throw new Error(`Bad slot "${s}", expected HH:MM between 00:00 and 23:59`);
 
   // Candidate times over the horizon, in order.
   const candidates: { epochMs: number; date: string; slot: string }[] = [];
@@ -98,15 +108,33 @@ export function plan(posts: readonly PlanPost[], opts: PlanOptions): Scheduled[]
 
   const taken: number[] = [];
   const out: Scheduled[] = [];
-  for (const post of posts) {
-    const matches = (c: { date: string; slot: string }) => (!post.date || c.date === post.date) && (!post.slot || c.slot === post.slot);
+  for (const [index, post] of posts.entries()) {
+    if (typeof post.text !== 'string') throw new Error(`Post ${index + 1} has no text`);
+    const warnings: string[] = [];
+
+    // Validate preferences; a bad one is reported, then ignored.
+    let wantDate = post.date;
+    let wantSlot = post.slot;
+    if (wantDate !== undefined && !validDate(wantDate)) {
+      warnings.push(`Preferred date "${wantDate}" is not a valid YYYY-MM-DD; ignored.`);
+      wantDate = undefined;
+    }
+    if (wantSlot !== undefined && !slots.includes(wantSlot)) {
+      warnings.push(`Preferred slot "${wantSlot}" is not one of ${slots.join(', ')}; ignored.`);
+      wantSlot = undefined;
+    }
+    if (wantDate !== undefined && !candidates.some((c) => c.date === wantDate)) {
+      warnings.push(`Preferred date ${wantDate} is outside the ${horizon}-day horizon from ${opts.start}; ignored.`);
+      wantDate = undefined;
+    }
+
+    const matches = (c: { date: string; slot: string }) => (!wantDate || c.date === wantDate) && (!wantSlot || c.slot === wantSlot);
     const free = (c: { epochMs: number }) => !taken.includes(c.epochMs) && gapOk(c.epochMs, taken, minGapMs);
-    const wanted = post.date || post.slot ? candidates.find(matches) : undefined;
+    const wanted = wantDate || wantSlot ? candidates.find(matches) : undefined;
     const chosen = candidates.find((c) => matches(c) && free(c)) ?? candidates.find(free);
-    if (!chosen) throw new Error(`No free slot within ${horizon} days for: ${post.text.slice(0, 40)}…`);
+    if (!chosen) throw new Error(`No free slot within ${horizon} days for post ${index + 1}: ${post.text.slice(0, 40)}…`);
     taken.push(chosen.epochMs);
 
-    const warnings: string[] = [];
     const hour = Number(chosen.slot.slice(0, 2));
     if (hour < awakeFrom || hour >= awakeTo) {
       warnings.push(`Slot ${chosen.slot} is outside awake hours ${awakeFrom}:00–${awakeTo}:00; replies in the first hours will go unanswered.`);
@@ -124,18 +152,25 @@ function gapOk(epochMs: number, taken: readonly number[], minGapMs: number): boo
   return taken.every((t) => Math.abs(t - epochMs) >= minGapMs);
 }
 
-/** Flag an existing schedule (e.g. exported from the X scheduled list) for stacking and sleep-hour posts. */
+const LOCAL = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})$/;
+
+/** Flag an existing schedule (e.g. copied from the X scheduled list) for stacking and sleep-hour posts. */
 export function audit(times: readonly { local: string }[], opts: Pick<PlanOptions, 'minGapHours' | 'awake'> = {}): string[] {
   const minGapMs = (opts.minGapHours ?? 3) * 3_600_000;
   const [awakeFrom, awakeTo] = opts.awake ?? [8, 23];
-  const parsed = times
-    .map((t) => ({ local: t.local, ms: Date.parse(t.local.replace(' ', 'T') + 'Z') }))
-    .sort((a, b) => a.ms - b.ms);
   const notes: string[] = [];
+  const parsed: { local: string; ms: number }[] = [];
+  for (const t of times) {
+    const m = LOCAL.exec(t.local ?? '');
+    const ms = m && validDate(m[1]!) && HHMM.test(m[2]!) ? Date.parse(`${m[1]}T${m[2]}:00Z`) : NaN;
+    if (Number.isNaN(ms)) notes.push(`Cannot parse "${t.local}"; expected "YYYY-MM-DD HH:MM".`);
+    else parsed.push({ local: `${m![1]} ${m![2]}`, ms });
+  }
+  parsed.sort((a, b) => a.ms - b.ms);
   for (let i = 0; i < parsed.length; i++) {
     const cur = parsed[i]!;
     const prev = parsed[i - 1];
-    if (prev && cur.ms - prev.ms < minGapMs) notes.push(`${cur.local} is ${((cur.ms - prev.ms) / 3_600_000).toFixed(1)}h after ${prev.local}: stacked, author diversity decay applies.`);
+    if (prev && cur.ms - prev.ms < minGapMs) notes.push(`${cur.local} is ${((cur.ms - prev.ms) / 3_600_000).toFixed(1)}h after ${prev.local}: stacked, each post gets less of its own reply window.`);
     const hour = Number(cur.local.slice(11, 13));
     if (hour < awakeFrom || hour >= awakeTo) notes.push(`${cur.local} is outside awake hours; nobody to answer replies.`);
   }

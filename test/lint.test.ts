@@ -20,6 +20,18 @@ test('engagement bait is an error', () => {
   }
 });
 
+test('ordinary uses of like, follow and share are not bait', () => {
+  for (const t of [
+    'People like this approach and share for good reason.',
+    'I follow this rule every day.',
+    'Easy to share to your team.',
+    'Prices drop a lot in winter.',
+    'Which rule do you follow for secrets?',
+  ]) {
+    assert.ok(!rules(t).includes('bait'), t);
+  }
+});
+
 test('link-only post warns, unless allowed', () => {
   assert.ok(rules('New post: https://example.com/a').includes('link-only'));
   assert.ok(!rules('New post: https://example.com/a', { allowLinkOnly: true }).includes('link-only'));

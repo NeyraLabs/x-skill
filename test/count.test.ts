@@ -37,3 +37,13 @@ test('limit and remaining', () => {
   assert.equal(c.remaining, -1);
   assert.equal(countPost('a'.repeat(280)).ok, true);
 });
+
+test('keycap and NFD text count like X does', () => {
+  assert.equal(countPost('1️⃣').weighted, 2);
+  assert.equal(countPost('e\u0301').weighted, 1);
+});
+
+test('trailing punctuation is not part of a URL', () => {
+  assert.deepEqual(extractUrls('see https://example.com/a.'), ['https://example.com/a']);
+  assert.equal(countPost('see https://example.com/a.').weighted, 4 + 23 + 1);
+});

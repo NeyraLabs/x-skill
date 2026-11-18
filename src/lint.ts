@@ -6,7 +6,7 @@ export interface Finding {
   rule: string;
   severity: Severity;
   message: string;
-  /** Why the rule exists, tied to the published ranking code or platform rules. */
+  /** Why the rule exists: the published ranking code, X's rules, or plain reader behaviour. */
   why: string;
 }
 
@@ -23,10 +23,17 @@ const EMOJI_RE = /\p{Extended_Pictographic}/gu;
 const HASHTAG_RE = /(^|\s)#[\p{L}\p{N}_]+/gu;
 const MENTION_RE = /(^|\s)@[A-Za-z0-9_]{1,15}\b/g;
 const CAPS_WORD_RE = /\b[A-Z]{4,}\b/g;
+const KNOWN_ACRONYMS = /^(?:CISA|NIST|API|MCP|CVE|AI|USA|EU|UK|GDPR|HTTPS?|JSON|SQL|AWS|GPU|CPU|LLM|OSS|CEO|CTO|CFO|NASA|FBI|OWASP|SDK|CLI|HTML|CSS|NPM|IETF|RFC|ISO|SOC|HIPAA|DNS|TLS|SSH|VPN|IoT|SaaS)$/;
+/**
+ * Engagement bait: an imperative asking the reader for an action in exchange
+ * for nothing. Anchored at the start of a sentence or line so that "people
+ * like this approach" and "I follow this rule" do not trip it.
+ */
 const BAIT_RE =
-  /\b(?:like|rt|retweet|repost|follow|share|bookmark)\s+(?:if|for|this|to|and)\b|\btag\s+(?:a|your|3|three)\b|\bcomment\s+below\b|\bdrop\s+(?:a|your)\b|\bfollow\s+me\b|\bfollow\s+back\b|\bf4f\b/i;
+  /(?:^|[.!?\n]\s*|[,;:]\s+)(?:(?:please\s+)?(?:like|rt|retweet|repost|share|bookmark)\s+(?:this\s+)?(?:if|and|&|for|to\s+support)\b|(?:please\s+)?follow\s+(?:me|us|for\s+more|back|for\s+follow)\b|tag\s+(?:a|your|\d+|three|two)\b|comment\s+below\b|drop\s+(?:a|an|your)\s+\S+\s+(?:below|if|in\s+the\s+comments)|smash\s+that\b|hit\s+(?:like|follow|the\s+bell)\b|f4f\b|follow\s*4\s*follow\b)/i;
 const URGENCY_RE = /🚨|\bBREAKING\b|\bURGENT\b|\blast chance\b|\bhurry\b/i;
 const QUESTION_OR_ASK_RE = /\?|\b(?:what do you|which|tell me|how do you|your take|disagree|what would you|anyone)\b/i;
+const SOURCE_CUE_RE = /\b(?:source|per|according|says|said|reports?|published|released|added|study|data|survey|from|via|by)\b|\b[A-Z]{2,}\b|https?:\/\//;
 
 export function lint(text: string, opts: LintOptions = {}): Finding[] {
   const limit = opts.limit ?? DEFAULT_LIMIT;
@@ -46,7 +53,7 @@ export function lint(text: string, opts: LintOptions = {}): Finding[] {
       'length',
       'error',
       `Weighted length ${count.weighted} is over the limit of ${limit} (${-count.remaining} over). URLs count as 23, CJK and emoji as 2.`,
-      'The composer will refuse it or turn it into a long post that the timeline truncates.',
+      'The composer will refuse it, or it becomes a long post that the timeline truncates.',
     );
   }
 
@@ -60,15 +67,16 @@ export function lint(text: string, opts: LintOptions = {}): Finding[] {
       'hook-length',
       'warn',
       `The hook (first line or first sentence) weighs ${firstCount}; keep it under 140 so it reads in one glance.`,
-      'Dwell is predicted per post in the feed; the first line decides whether the reader pauses or scrolls past (not_dwelled is weighted negatively).',
+      'The model predicts dwell and "not dwelled" per post; the first line decides whether the reader pauses. Reader behaviour, not a published number.',
     );
   }
-  if (/^(https?:\/\/|www\.)/i.test(firstLine) || extractUrls(firstLine).length > 0 && firstLine.length <= extractUrls(firstLine)[0]!.length + 3) {
+  const firstUrls = extractUrls(firstLine);
+  if (/^(https?:\/\/|www\.)/i.test(firstLine) || (firstUrls.length > 0 && firstLine.length <= (firstUrls[0]?.length ?? 0) + 3)) {
     push(
       'hook-link',
       'warn',
       'The first line is a link. Lead with the fact or the question, put the link after it.',
-      'open_link weighs 0.2 while reply weighs 5.0 and copy-link 20.0; a bare link gives the reader nothing to answer.',
+      'A bare link gives the reader nothing to answer or forward; the model predicts replies, quotes and shares, not just link opens.',
     );
   }
   if (/^#/.test(firstLine)) {
@@ -82,23 +90,23 @@ export function lint(text: string, opts: LintOptions = {}): Finding[] {
       'link-only',
       'warn',
       'The post is a link with fewer than 40 characters of text.',
-      'A link-only post invites one low-weight action (open_link 0.2). Say what the reader will find and why it matters, or put the link in a reply.',
+      'There is no link penalty in the public code (open_link has a positive weight), but a link-only post invites one action and no conversation. Say what the reader will find, or put the link in a reply.',
     );
   }
 
   const hashtags = [...trimmed.matchAll(HASHTAG_RE)].length;
   if (hashtags > 2) {
-    push('hashtags', 'warn', `${hashtags} hashtags; use at most 2.`, 'Hashtag walls read as spam and push the text out of the first glance. There is no hashtag term in the published value model.');
+    push('hashtags', 'warn', `${hashtags} hashtags; use at most 2.`, 'Hashtag walls push the text out of the first glance and read as spam. There is no hashtag term in the published value model.');
   }
 
   const mentions = [...trimmed.matchAll(MENTION_RE)].length;
   if (mentions > 3) {
-    push('mentions', 'warn', `${mentions} mentions; more than 3 reads as a tag wall.`, 'Unsolicited mass mentions are listed under platform manipulation in X\'s rules and invite mute and report, the most negative weights.');
+    push('mentions', 'warn', `${mentions} mentions; more than 3 reads as a tag wall.`, "Unsolicited mass mentions fall under X's platform manipulation and spam rules, and they invite mute and report, which the model predicts with negative weights.");
   }
 
-  const caps = [...trimmed.matchAll(CAPS_WORD_RE)].filter((m) => !/^(?:CISA|NIST|API|MCP|CVE|AI|USA|EU|UK|GDPR|HTTPS?|JSON|SQL|AWS|GPU|CPU|LLM|OSS|CEO|CTO|CFO|NASA|FBI|OWASP)$/.test(m[0]));
+  const caps = [...trimmed.matchAll(CAPS_WORD_RE)].filter((m) => !KNOWN_ACRONYMS.test(m[0]));
   if (caps.length > 2) {
-    push('caps', 'warn', `${caps.length} words in capitals: ${caps.slice(0, 4).map((m) => m[0]).join(', ')}.`, 'Shouting is a known trigger for "not interested" (-53.07).');
+    push('caps', 'warn', `${caps.length} words in capitals: ${caps.slice(0, 4).map((m) => m[0]).join(', ')}.`, 'Shouting is the house style of low-quality accounts; it earns "not interested" and mutes, both negative in the model.');
   }
 
   const emoji = [...trimmed.matchAll(EMOJI_RE)].length;
@@ -110,13 +118,13 @@ export function lint(text: string, opts: LintOptions = {}): Finding[] {
     push(
       'bait',
       'error',
-      'Engagement bait detected ("like if", "follow for", "tag a friend", "comment below" and similar).',
-      'Bait trades a 0.708 like for the risk of a -53.07 "not interested" or a -234 report, and X\'s rules name engagement farming as manipulation.',
+      'Engagement bait detected ("like if", "follow for more", "tag a friend", "comment below" and similar).',
+      "X's rules name engagement farming as platform manipulation. In the model, bait invites the actions with negative weights (not interested, mute, report) from the readers you want to keep.",
     );
   }
 
   if (URGENCY_RE.test(trimmed)) {
-    push('urgency', 'warn', 'Alarm words or sirens (BREAKING, 🚨, URGENT).', 'Alarm framing is copied by low-quality accounts; it earns mutes from the readers you want to keep.');
+    push('urgency', 'warn', 'Alarm words or sirens (BREAKING, 🚨, URGENT).', 'Alarm framing is copied by low-quality accounts; it earns mutes from careful readers.');
   }
 
   for (const phrase of opts.banned ?? []) {
@@ -130,12 +138,12 @@ export function lint(text: string, opts: LintOptions = {}): Finding[] {
       'no-invitation',
       'info',
       'No question or invitation to answer. Fine for a plain statement; consider one specific question.',
-      'Reply (5.0) and quote (5.0) outweigh like (0.708) seven times over, and replies from mutual follows get a further 15.0 boost.',
+      'Reply and quote are among the actions the model is built to predict, with higher weights than like. The weights are not count ratios, but the direction is clear: the feed is tuned for conversation.',
     );
   }
 
-  if (/\b\d+(?:[.,]\d+)?%|\b\d{2,}\b/.test(trimmed) && !/\b(?:source|per|according|says|said|reports?|published|released|added|study|data|survey|from|via|by)\b|\b[A-Z]{2,}\b|https?:\/\//.test(trimmed)) {
-    push('number-without-source', 'info', 'A number with no source word or link next to it.', 'Numbers travel (copy link 20.0) when the reader can defend them; a sourced number gets quoted, an unsourced one gets corrected.');
+  if (/\b\d+(?:[.,]\d+)?%|\b\d{2,}\b/.test(trimmed) && !SOURCE_CUE_RE.test(trimmed)) {
+    push('number-without-source', 'info', 'A number with no source word or link next to it.', 'Numbers travel when the reader can defend them; a sourced number gets quoted and copied, an unsourced one gets corrected.');
   }
 
   return findings;

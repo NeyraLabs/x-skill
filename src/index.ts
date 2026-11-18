@@ -9,3 +9,5 @@ export { parseCsv, detectColumns, summarize } from './analytics.js';
 export type { Table, Metric, Summary } from './analytics.js';
 export { ACTION_WEIGHTS, BOOSTS, ADJUSTMENTS, VALUE_MODEL_SOURCE, positiveActions, negativeActions, weightOf } from './value-model.js';
 export type { ActionWeight, ActionGroup } from './value-model.js';
+export { parseArgs } from './args.js';
+export type { Flags, ParsedArgs } from './args.js';

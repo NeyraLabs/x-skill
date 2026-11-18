@@ -14,6 +14,12 @@ test('csv parser handles quotes, commas and newlines inside fields', () => {
   assert.equal(t.rows[1]!.a, 'q "quoted"');
 });
 
+test('duplicate headers are kept apart', () => {
+  const t = parseCsv('a,a,b\n1,2,3\n');
+  assert.deepEqual(t.headers, ['a', 'a (2)', 'b']);
+  assert.equal(t.rows[0]!['a (2)'], '2');
+});
+
 test('column detection is loose and case-insensitive', () => {
   const c = detectColumns(['Date', 'Impressions', 'Likes', 'Replies', 'Reposts', 'New follows', 'Post text']);
   assert.equal(c.metrics.follows, 'New follows');

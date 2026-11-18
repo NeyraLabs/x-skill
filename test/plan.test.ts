@@ -49,3 +49,24 @@ test('audit flags stacked and night posts', () => {
 test('no slot within horizon throws', () => {
   assert.throws(() => plan([{ text: 'a' }, { text: 'b' }], { ...base, slots: ['09:30'], horizonDays: 1 }));
 });
+
+test('invalid preferences are reported, not dropped silently', () => {
+  const s = plan([{ text: 'a', date: '2026-13-45', slot: '11:00' }], base);
+  assert.ok(s[0]!.warnings.some((w) => w.includes('not a valid')));
+  assert.ok(s[0]!.warnings.some((w) => w.includes('not one of')));
+  assert.equal(s[0]!.local, '2026-11-19 09:30');
+  const far = plan([{ text: 'a', date: '2027-01-01' }], base);
+  assert.ok(far[0]!.warnings.some((w) => w.includes('horizon')));
+});
+
+test('bad slots, bad start and missing text throw', () => {
+  assert.throws(() => plan([{ text: 'a' }], { ...base, slots: ['25:99'] }), /Bad slot/);
+  assert.throws(() => plan([{ text: 'a' }], { ...base, start: '2026-02-30' }), /Bad start/);
+  assert.throws(() => plan([{} as { text: string }], base), /no text/);
+});
+
+test('audit reports times it cannot parse', () => {
+  const notes = audit([{ local: 'tomorrow 9am' }, { local: '2026-11-19 09:00' }]);
+  assert.equal(notes.length, 1);
+  assert.match(notes[0]!, /Cannot parse/);
+});

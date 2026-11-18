@@ -32,7 +32,7 @@ export const URL_PATTERN = new RegExp(
   'giu',
 );
 
-const EMOJI = /\p{Extended_Pictographic}|\p{Regional_Indicator}/u;
+const EMOJI = /\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20e3/u;
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
 function codePointWeight(cp: number): number {
@@ -66,13 +66,20 @@ export interface CountResult {
   ok: boolean;
 }
 
-export function extractUrls(text: string): string[] {
-  return [...text.matchAll(URL_PATTERN)].map((m) => m[0]);
+/** Trailing sentence punctuation is not part of a link. */
+function trimUrl(u: string): string {
+  return u.replace(/[.,!?;:]+$/, '');
 }
 
-export function countPost(text: string, limit: number = DEFAULT_LIMIT): CountResult {
+export function extractUrls(text: string): string[] {
+  return [...text.normalize('NFC').matchAll(URL_PATTERN)].map((m) => trimUrl(m[0]));
+}
+
+export function countPost(input: string, limit: number = DEFAULT_LIMIT): CountResult {
+  // twitter-text normalises to NFC before counting, so "e + combining acute" weighs 1.
+  const text = input.normalize('NFC');
   const urls = extractUrls(text);
-  const plain = text.replace(URL_PATTERN, ' ');
+  const plain = text.replace(URL_PATTERN, (m) => ' ' + m.slice(trimUrl(m).length));
   // the replacement space weighs 1, so subtract it per URL
   const weighted = textWeight(plain) - urls.length + urls.length * URL_WEIGHT;
   return {

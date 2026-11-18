@@ -47,7 +47,13 @@ export function parseCsv(text: string): Table {
     rows.push(row);
   }
   const nonEmpty = rows.filter((r) => r.some((c) => c.trim() !== ''));
-  const headers = (nonEmpty.shift() ?? []).map((h) => h.trim());
+  const seen = new Map<string, number>();
+  const headers = (nonEmpty.shift() ?? []).map((raw) => {
+    const h = raw.trim();
+    const n = seen.get(h) ?? 0;
+    seen.set(h, n + 1);
+    return n === 0 ? h : `${h} (${n + 1})`;
+  });
   return {
     headers,
     rows: nonEmpty.map((r) => Object.fromEntries(headers.map((h, i) => [h, (r[i] ?? '').trim()]))),

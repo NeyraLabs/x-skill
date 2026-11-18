@@ -7,13 +7,14 @@
  *   xskill lint <file|->        [--limit 280] [--banned "a,b"] [--allow-link-only] [--json]
  *   xskill thread <file|->      [--limit 280] [--number slash|of] [--json]
  *   xskill plan <posts.json>    --start YYYY-MM-DD --offset +08:00 [--slots 09:30,14:30,22:30] [--gap 3] [--awake 8-23] [--json]
- *   xskill audit <times.json>   [--gap 3] [--awake 8-23]
+ *   xskill audit <times.json>   [--gap 3] [--awake 8-23] [--json]
  *   xskill analytics <file.csv> [--top 10] [--json]
- *   xskill weights
+ *   xskill weights              [--json]
  *
  * Nothing here talks to X. Nothing posts. You read the output and act.
  */
 import { readFileSync } from 'node:fs';
+import { parseArgs, str, num, type Flags } from '../src/args.js';
 import { countPost } from '../src/count.js';
 import { lint, worst } from '../src/lint.js';
 import { splitThread } from '../src/thread.js';
@@ -21,40 +22,37 @@ import { plan, audit, type PlanPost } from '../src/plan.js';
 import { parseCsv, summarize } from '../src/analytics.js';
 import { ACTION_WEIGHTS, ADJUSTMENTS, BOOSTS, VALUE_MODEL_SOURCE } from '../src/value-model.js';
 
-type Flags = Record<string, string | boolean>;
-
-function parseArgs(argv: string[]): { cmd: string; positional: string[]; flags: Flags } {
-  const [cmd = 'help', ...rest] = argv;
-  const positional: string[] = [];
-  const flags: Flags = {};
-  for (let i = 0; i < rest.length; i++) {
-    const a = rest[i]!;
-    if (a.startsWith('--')) {
-      const key = a.slice(2);
-      const next = rest[i + 1];
-      if (next !== undefined && !next.startsWith('--')) {
-        flags[key] = next;
-        i++;
-      } else flags[key] = true;
-    } else positional.push(a);
-  }
-  return { cmd, positional, flags };
-}
+class UsageError extends Error {}
 
 function readInput(path: string | undefined): string {
-  if (!path || path === '-') return readFileSync(0, 'utf8');
-  return readFileSync(path, 'utf8');
+  try {
+    if (!path || path === '-') return readFileSync(0, 'utf8');
+    return readFileSync(path, 'utf8');
+  } catch (e) {
+    throw new UsageError(`Cannot read ${path ?? 'stdin'}: ${(e as Error).message}`);
+  }
 }
 
-function str(flags: Flags, key: string): string | undefined {
-  const v = flags[key];
-  return typeof v === 'string' ? v : undefined;
+function readJsonArray(path: string | undefined, what: string): unknown[] {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readInput(path));
+  } catch (e) {
+    if (e instanceof UsageError) throw e;
+    throw new UsageError(`${path ?? 'stdin'} is not valid JSON: ${(e as Error).message}`);
+  }
+  if (!Array.isArray(raw)) throw new UsageError(`${path ?? 'stdin'} must be a JSON array of ${what}`);
+  return raw;
 }
 
-function numFlag(flags: Flags, key: string, fallback: number): number {
-  const v = str(flags, key);
-  const n = v === undefined ? NaN : Number(v);
-  return Number.isFinite(n) ? n : fallback;
+function awakeFrom(flags: Flags): [number, number] {
+  const raw = str(flags, 'awake') ?? '8-23';
+  const m = /^(\d{1,2})-(\d{1,2})$/.exec(raw);
+  if (!m) throw new UsageError(`--awake must look like 8-23, got "${raw}"`);
+  const from = Number(m[1]);
+  const to = Number(m[2]);
+  if (from < 0 || to > 24 || from >= to) throw new UsageError(`--awake range "${raw}" is out of order or outside 0-24`);
+  return [from, to];
 }
 
 function out(obj: unknown, flags: Flags, human: () => void): void {
@@ -64,7 +62,7 @@ function out(obj: unknown, flags: Flags, human: () => void): void {
 
 function cmdLint(positional: string[], flags: Flags): number {
   const text = readInput(positional[0]);
-  const limit = numFlag(flags, 'limit', 280);
+  const limit = num(flags, 'limit', 280);
   const banned = (str(flags, 'banned') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   const findings = lint(text, { limit, banned, allowLinkOnly: Boolean(flags['allow-link-only']) });
   const count = countPost(text.trim(), limit);
@@ -82,7 +80,7 @@ function cmdLint(positional: string[], flags: Flags): number {
 
 function cmdThread(positional: string[], flags: Flags): number {
   const text = readInput(positional[0]);
-  const limit = numFlag(flags, 'limit', 280);
+  const limit = num(flags, 'limit', 280);
   const numberingFlag = str(flags, 'number');
   const numbering = numberingFlag === 'slash' || numberingFlag === 'of' ? numberingFlag : 'none';
   const posts = splitThread(text, { limit, numbering });
@@ -96,18 +94,17 @@ function cmdThread(positional: string[], flags: Flags): number {
 }
 
 function cmdPlan(positional: string[], flags: Flags): number {
-  const raw = JSON.parse(readInput(positional[0])) as unknown;
-  const posts: PlanPost[] = Array.isArray(raw) ? raw.map((p) => (typeof p === 'string' ? { text: p } : (p as PlanPost))) : [];
+  const raw = readJsonArray(positional[0], 'strings or {text, slot?, date?} objects');
+  const posts: PlanPost[] = raw.map((p, i) => {
+    if (typeof p === 'string') return { text: p };
+    if (p && typeof p === 'object' && typeof (p as PlanPost).text === 'string') return p as PlanPost;
+    throw new UsageError(`Entry ${i + 1} is neither a string nor an object with a "text" string`);
+  });
   const start = str(flags, 'start');
   const utcOffset = str(flags, 'offset');
-  if (!start || !utcOffset) {
-    console.error('plan needs --start YYYY-MM-DD and --offset +08:00');
-    return 2;
-  }
-  const slots = (str(flags, 'slots') ?? '09:30,14:30,22:30').split(',').map((s) => s.trim());
-  const awakeRaw = (str(flags, 'awake') ?? '8-23').split('-').map(Number);
-  const awake: [number, number] = [awakeRaw[0] ?? 8, awakeRaw[1] ?? 23];
-  const scheduled = plan(posts, { start, utcOffset, slots, minGapHours: numFlag(flags, 'gap', 3), awake });
+  if (!start || !utcOffset) throw new UsageError('plan needs --start YYYY-MM-DD and --offset +08:00');
+  const slots = (str(flags, 'slots') ?? '09:30,14:30,22:30').split(',').map((s) => s.trim()).filter(Boolean);
+  const scheduled = plan(posts, { start, utcOffset, slots, minGapHours: num(flags, 'gap', 3), awake: awakeFrom(flags) });
   out(scheduled, flags, () => {
     for (const s of scheduled) {
       console.log(`${s.local}  ${s.text.replace(/\s+/g, ' ').slice(0, 70)}`);
@@ -118,10 +115,13 @@ function cmdPlan(positional: string[], flags: Flags): number {
 }
 
 function cmdAudit(positional: string[], flags: Flags): number {
-  const raw = JSON.parse(readInput(positional[0])) as unknown;
-  const times = Array.isArray(raw) ? raw.map((t) => (typeof t === 'string' ? { local: t } : (t as { local: string }))) : [];
-  const awakeRaw = (str(flags, 'awake') ?? '8-23').split('-').map(Number);
-  const notes = audit(times, { minGapHours: numFlag(flags, 'gap', 3), awake: [awakeRaw[0] ?? 8, awakeRaw[1] ?? 23] });
+  const raw = readJsonArray(positional[0], '"YYYY-MM-DD HH:MM" strings');
+  const times = raw.map((t, i) => {
+    if (typeof t === 'string') return { local: t };
+    if (t && typeof t === 'object' && typeof (t as { local?: unknown }).local === 'string') return t as { local: string };
+    throw new UsageError(`Entry ${i + 1} is neither a string nor an object with a "local" string`);
+  });
+  const notes = audit(times, { minGapHours: num(flags, 'gap', 3), awake: awakeFrom(flags) });
   out({ notes }, flags, () => {
     if (notes.length === 0) console.log('ok: no stacked or sleep-hour posts');
     for (const n of notes) console.log(`! ${n}`);
@@ -131,7 +131,8 @@ function cmdAudit(positional: string[], flags: Flags): number {
 
 function cmdAnalytics(positional: string[], flags: Flags): number {
   const table = parseCsv(readInput(positional[0]));
-  const summary = summarize(table, numFlag(flags, 'top', 10));
+  if (table.headers.length === 0) throw new UsageError('The CSV has no header row');
+  const summary = summarize(table, num(flags, 'top', 10));
   out(summary, flags, () => {
     console.log(`${summary.rows} rows; columns found: ${summary.found.join(', ') || 'none'}; missing: ${summary.missing.join(', ') || 'none'}`);
     console.log('totals:', Object.entries(summary.totals).map(([k, v]) => `${k}=${v}`).join('  '));
@@ -152,29 +153,38 @@ function cmdAnalytics(positional: string[], flags: Flags): number {
 function cmdWeights(flags: Flags): number {
   out({ source: VALUE_MODEL_SOURCE, weights: ACTION_WEIGHTS, boosts: BOOSTS, adjustments: ADJUSTMENTS }, flags, () => {
     console.log(`Default weights from ${VALUE_MODEL_SOURCE.repo} (${VALUE_MODEL_SOURCE.file}, read ${VALUE_MODEL_SOURCE.retrieved}).`);
-    console.log('Final Score = Σ (weight × P(action)); weights scale predicted probabilities, not counts.\n');
+    console.log('Final Score = Σ (weight × P(action)). Weights multiply predicted probabilities, not counts;');
+    console.log('param.rs calls reading them as count ratios ("one report cancels 468 likes") a misinterpretation.\n');
     for (const a of ACTION_WEIGHTS) console.log(`${String(a.weight).padStart(8)}  ${a.label.padEnd(32)} ${a.reader}`);
-    console.log(`\nreply boost when you follow each other: +${BOOSTS.bidirectional_follow_reply_weight_boost}`);
-    console.log('\nAdjustments described in the README (values not in the public params):');
-    for (const adj of ADJUSTMENTS) console.log(`- ${adj.name}: ${adj.meaning}`);
+    console.log(`\nreply weight boost when viewer and author follow each other: +${BOOSTS.bidirectional_follow_reply_weight_boost} (applied to P(reply) on that post)`);
+    console.log('\nAdjustments named in the README, with their status in the public defaults:');
+    for (const adj of ADJUSTMENTS) console.log(`- ${adj.name}: ${adj.status}\n  → ${adj.meaning}`);
   });
   return 0;
 }
 
 function help(): number {
-  console.log(readFileSync(new URL(import.meta.url)).toString().split('\n').slice(2, 14).join('\n').replace(/^ \* ?/gm, ''));
+  const src = readFileSync(new URL(import.meta.url), 'utf8');
+  const block = src.split('\n').slice(2, 14).join('\n').replace(/^ \* ?/gm, '');
+  console.log(block);
   return 0;
 }
 
 const { cmd, positional, flags } = parseArgs(process.argv.slice(2));
-let code = 0;
-switch (cmd) {
-  case 'lint': code = cmdLint(positional, flags); break;
-  case 'thread': code = cmdThread(positional, flags); break;
-  case 'plan': code = cmdPlan(positional, flags); break;
-  case 'audit': code = cmdAudit(positional, flags); break;
-  case 'analytics': code = cmdAnalytics(positional, flags); break;
-  case 'weights': code = cmdWeights(flags); break;
-  default: code = help();
+try {
+  let code = 0;
+  switch (cmd) {
+    case 'lint': code = cmdLint(positional, flags); break;
+    case 'thread': code = cmdThread(positional, flags); break;
+    case 'plan': code = cmdPlan(positional, flags); break;
+    case 'audit': code = cmdAudit(positional, flags); break;
+    case 'analytics': code = cmdAnalytics(positional, flags); break;
+    case 'weights': code = cmdWeights(flags); break;
+    default: code = help();
+  }
+  process.exitCode = code;
+} catch (e) {
+  const msg = e instanceof Error ? e.message : String(e);
+  console.error(`xskill: ${msg}`);
+  process.exitCode = 2;
 }
-process.exitCode = code;
