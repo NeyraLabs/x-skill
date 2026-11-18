@@ -25,21 +25,34 @@ const MENTION_RE = /(^|\s)@[A-Za-z0-9_]{1,15}\b/g;
 const CAPS_WORD_RE = /\b[A-Z]{4,}\b/g;
 const KNOWN_ACRONYMS = /^(?:CISA|NIST|API|MCP|CVE|AI|USA|EU|UK|GDPR|HTTPS?|JSON|SQL|AWS|GPU|CPU|LLM|OSS|CEO|CTO|CFO|NASA|FBI|OWASP|SDK|CLI|HTML|CSS|NPM|IETF|RFC|ISO|SOC|HIPAA|DNS|TLS|SSH|VPN|IoT|SaaS)$/;
 /**
- * Engagement bait, two tiers. BAIT_ERROR_RE holds phrases that have no
- * ordinary reading ("RT if you agree", "follow for more", "f4f"); they are
- * an error. BAIT_WARN_RE holds phrases that are usually bait but can be an
- * honest request ("comment below with your CVE", "follow back policies");
- * they are a warning for the writer to check.
+ * Engagement bait, two tiers. A bait imperative must open a clause: start of
+ * text or line, after sentence punctuation, or after a lead-in such as
+ * "please". BAIT_ERROR_RE holds phrases with no ordinary reading ("RT if you
+ * agree", "follow for more", "f4f", "tag 3 friends"); they are an error.
+ * BAIT_WARN_RE holds phrases that are usually bait but can be an honest
+ * request ("share if you see a regression", "comment below with your CVE");
+ * they are a warning for the writer to check. A regex cannot tell those
+ * apart, so the error tier stays narrow on purpose.
  */
-/** A bait imperative must open a clause: start of text or line, after sentence punctuation, or after a lead-in such as "please". */
 const CLAUSE_START = String.raw`(?:^|[.!?\n;:,]\s*|\b(?:please|pls|plz|and|so|now|also|news|guys|everyone)\s+)`;
+const SOCIAL_VERB = String.raw`(?:like|rt|retweet|repost|share|bookmark)`;
 const BAIT_ERROR_RE = new RegExp(
   CLAUSE_START +
-    String.raw`(?:(?:like|rt|retweet|repost|share|bookmark)\s+(?:this\s+)?if\s+(?:you|this|it|that)\b|follow\s+(?:me|us)\s+(?:on\s+\S+\s+)?(?:for|and|if)\b|follow\s+for\s+(?:more|follow|updates|daily)\b|f4f\b|follow\s*4\s*follow\b|tag\s+(?:a|your|two|three|\d+)\s+(?:friends?|mates?|buddy|buddies|colleagues?|someone)\b|smash\s+that\b|hit\s+(?:the\s+)?(?:like|follow)\s+button\b|(?:like|rt|retweet|repost|share)\s+(?:and|&)\s+(?:rt|retweet|repost|share|follow|subscribe)\b(?=\s*(?:[.!?,;:)]|$|if\b|for\b|please\b|this\b|to\s+(?:support|help)\b|with\s+(?:your|a)\b))|like\s+for\s+(?:a|more|part)\b)`,
+    String.raw`(?:${SOCIAL_VERB}\s+(?:this\s+)?if\s+(?:you\s+)?(?:agree|relate|like\s+this|found\s+(?:this|it)\s+(?:useful|helpful)|(?:this|it)\s+helped|you\s+want\s+(?:more|part))\b` +
+    String.raw`|follow\s+(?:me|us)\s+(?:on\s+\S+\s+)?(?:for\s+(?:more|updates|daily|part)|and\s+(?:rt|retweet|repost|share|like))\b` +
+    String.raw`|follow\s+for\s+(?:more|follow|updates|daily)\b|f4f\b|follow\s*4\s*follow\b` +
+    String.raw`|tag\s+(?:a|your|two|three|\d+)\s+(?:friends?|mates?|buddy|buddies|colleagues?|someone)\b` +
+    String.raw`|smash\s+that\b|hit\s+(?:the\s+)?(?:like|follow)\s+button\b` +
+    String.raw`|${SOCIAL_VERB}\s+(?:and|&)\s+(?:rt|retweet|repost|share|follow|subscribe)\b(?=\s*(?:[.!?,;:)]|$|if\b|for\b|please\b|this\b|to\s+(?:support|help)\b|with\s+(?:your|a)\b))` +
+    String.raw`|like\s+for\s+(?:a|more|part)\b)`,
   'i',
 );
-const BAIT_WARN_RE =
-  /\bcomment\s+below\b|\bdrop\s+(?:a|an|your)\s+\S+\s+(?:below|in\s+the\s+(?:comments|replies))|\bfollow\s+back\b|\bshare\s+(?:this\s+)?(?:for\s+(?:a\s+chance|more)|to\s+support)\b|\bbookmark\s+this\b|\bretweets?\s+appreciated\b/i;
+const BAIT_WARN_RE = new RegExp(
+  CLAUSE_START +
+    String.raw`(?:${SOCIAL_VERB}\s+(?:this\s+)?if\s+(?:you|this|it|that)\b|follow\s+(?:me|us)\s+(?:on\s+\S+\s+)?(?:for|if)\b)` +
+    String.raw`|\bcomment\s+below\b|\bdrop\s+(?:a|an|your)\s+\S+\s+(?:below|in\s+the\s+(?:comments|replies))|\bfollow\s+back\b|\bshare\s+(?:this\s+)?(?:for\s+(?:a\s+chance|more)|to\s+support)\b|\bbookmark\s+this\b|\bretweets?\s+appreciated\b`,
+  'i',
+);
 const URGENCY_RE = /🚨|\bBREAKING\b|\bURGENT\b|\blast chance\b|\bhurry\b/i;
 const QUESTION_OR_ASK_RE = /\?|\b(?:what do you|which|tell me|how do you|your take|disagree|what would you|anyone)\b/i;
 const SOURCE_CUE_RE = /\b(?:source|per|according|says|said|reports?|published|released|added|study|data|survey|from|via|by)\b|\b[A-Z]{2,}\b|https?:\/\//;
@@ -134,7 +147,7 @@ export function lint(text: string, opts: LintOptions = {}): Finding[] {
     push(
       'bait-check',
       'warn',
-      'Phrasing that usually reads as bait ("comment below", "follow back", "share to support"). Keep it only if it is a real request with a reason.',
+      'Phrasing that usually reads as bait ("share if you...", "comment below", "follow back"). Keep it only if it is a real request with a concrete reason.',
       'Readers who feel farmed mute; a concrete ask ("reply with the CVE you hit") reads as conversation, a generic one as bait.',
     );
   }

@@ -109,7 +109,7 @@ npx tsx scripts/xskill.ts analytics <file.csv> [--top 10] [--json]
 npx tsx scripts/xskill.ts weights              [--json]
 ```
 
-`lint` exits 1 on an error-level finding so it can gate a script, 2 on a usage error. Character counting follows X's weighted rules (URLs 23, CJK and emoji 2, NFC). `plan` takes `["text", {"text": "...", "slot": "14:30", "date": "2026-11-21"}]` and reports any preference it had to ignore or move. `audit` takes `["2026-11-19 09:00", ...]` in local time. `analytics` reads the CSV you download from X Analytics (account overview per day, or the per-post content export) and reports totals, rates per 1,000 impressions, and posts ordered by replies, quotes, shares and follows.
+`lint` exits 1 on an error-level finding so it can gate a script, 2 on a usage error. The bait rule has two tiers: unambiguous bait ("RT if you agree", "follow for more", "tag 3 friends") is an error; phrasing that can be an honest ask ("share if you see a regression", "comment below") is a warning to check, because text alone cannot tell them apart. Character counting follows X's weighted rules (URLs 23, CJK and emoji 2, NFC). `plan` takes `["text", {"text": "...", "slot": "14:30", "date": "2026-11-21"}]` and reports any preference it had to ignore or move. `audit` takes `["2026-11-19 09:00", ...]` in local time. `analytics` reads the CSV you download from X Analytics (account overview per day, or the per-post content export) and reports totals, rates per 1,000 impressions, and posts ordered by replies, quotes, shares and follows.
 
 The library is importable: `import { lint, splitThread, plan, summarize, ACTION_WEIGHTS } from './src/index.js'`.
 

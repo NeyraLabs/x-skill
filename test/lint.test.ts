@@ -19,7 +19,6 @@ test('engagement bait is an error', () => {
     'Like if you agree',
     'Follow for more',
     'Tag a friend who needs this',
-    'RT if you remember',
     'Big news RT if you agree',
     'If you agree please like and RT',
     'Follow me for daily tips',
@@ -28,13 +27,22 @@ test('engagement bait is an error', () => {
     'Great thread. Share if you found it useful',
     'Retweet if this helped',
     'Like and share with your team!',
+    'RT & follow for part two',
+    'Tag 3 friends',
   ]) {
     assert.ok(rules(t).includes('bait'), t);
   }
 });
 
 test('ambiguous asks are a warning to check, not an error', () => {
-  for (const t of ['Comment below with your CVE ID', 'Thoughts? please comment below', 'Results are in. Follow back policies vary.']) {
+  for (const t of [
+    'Comment below with your CVE ID',
+    'Thoughts? please comment below',
+    'Results are in. Follow back policies vary.',
+    'Run the benchmark on ARM and share if you see a regression.',
+    'Follow us if you run Postgres on ARM.',
+    'RT if you remember this bug',
+  ]) {
     const f = lint(t);
     assert.ok(f.some((x) => x.rule === 'bait-check' && x.severity === 'warn'), t);
     assert.ok(!f.some((x) => x.rule === 'bait'), t);
@@ -57,6 +65,9 @@ test('ordinary uses of like, follow and share are not bait', () => {
     'Teams that follow us and audit monthly had 0 breaches.',
     'We review the patch, share and follow up with the vendor.',
     'Read it, follow us to the next section if you want details.',
+    'Rivals, as usual, follow us and copy the feature a year later.',
+    'Share prices fell 4% after the report, per Reuters.',
+    'Tag the release, then follow the migration guide.',
   ]) {
     assert.ok(!rules(t).includes('bait'), t);
     assert.ok(!rules(t).includes('bait-check'), t);
