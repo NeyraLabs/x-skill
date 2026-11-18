@@ -24,6 +24,8 @@ test('engagement bait is an error', () => {
     'If you agree please like and RT',
     'Follow me for daily tips',
     'f4f anyone',
+    'Follow us on Mastodon for updates',
+    'Great thread. Share if you found it useful',
   ]) {
     assert.ok(rules(t).includes('bait'), t);
   }
@@ -47,6 +49,10 @@ test('ordinary uses of like, follow and share are not bait', () => {
     'Like and dislike counts are both public now, per the 2024 data.',
     'Share for the web rose 4% per StatCounter.',
     'To escalate, tag a moderator in the thread.',
+    'Pick any license you like if you want, MIT is fine.',
+    'Engineers like this if you show the numbers.',
+    'Do not follow me for financial advice.',
+    'Teams that follow us and audit monthly had 0 breaches.',
   ]) {
     assert.ok(!rules(t).includes('bait'), t);
     assert.ok(!rules(t).includes('bait-check'), t);

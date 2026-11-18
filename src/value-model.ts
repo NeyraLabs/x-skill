@@ -117,7 +117,7 @@ export const ADJUSTMENTS = [
     name: 'VMRanker',
     readme: 'reorders results with a determinantal point process over embeddings, giving up a little score for less similarity between neighbours',
     status: 'Separate service in vm-ranker/; not reproduced here.',
-    meaning: 'Neighbouring posts in a feed load are nudged apart when they are similar. A small effect by the README\'s own words; not a reason to post the same idea twice.',
+    meaning: 'The reranker trades a little score for less similarity between neighbouring posts. How far posts move is not stated. Two near-identical posts in one feed load are the case it targets.',
   },
 ] as const;
 

@@ -156,7 +156,7 @@ function cmdWeights(flags: Flags): number {
     console.log('Final Score = Σ (weight × P(action)). Weights multiply predicted probabilities, not counts;');
     console.log('param.rs calls reading them as count ratios ("one report cancels 468 likes") a misinterpretation.\n');
     for (const a of ACTION_WEIGHTS) console.log(`${String(a.weight).padStart(8)}  ${a.label.padEnd(32)} ${a.reader}`);
-    console.log(`\nreply weight boost when viewer and author follow each other: +${BOOSTS.bidirectional_follow_reply_weight_boost} (applied to P(reply) on that post)`);
+    console.log(`\nreply weight boost: +${BOOSTS.bidirectional_follow_reply_weight_boost} on P(reply) for an ORIGINAL post (not a reply or repost) when viewer and author follow each other (inputs.rs)`);
     console.log('\nAdjustments named in the README, with their status in the public defaults:');
     for (const adj of ADJUSTMENTS) console.log(`- ${adj.name}: ${adj.status}\n  → ${adj.meaning}`);
   });

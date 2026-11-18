@@ -31,8 +31,13 @@ const KNOWN_ACRONYMS = /^(?:CISA|NIST|API|MCP|CVE|AI|USA|EU|UK|GDPR|HTTPS?|JSON|
  * honest request ("comment below with your CVE", "follow back policies");
  * they are a warning for the writer to check.
  */
-const BAIT_ERROR_RE =
-  /\b(?:like|rt|retweet|repost|share|bookmark)\s+(?:this\s+)?if\s+you\b|\bfollow\s+(?:me|us)\s+(?:for|and|to|if)\b|\bfollow\s+for\s+(?:more|follow|updates|daily)\b|\bf4f\b|\bfollow\s*4\s*follow\b|\btag\s+(?:a|your|two|three|\d+)\s+(?:friends?|mates?|buddy|buddies|colleagues?|someone)\b|\bsmash\s+that\b|\bhit\s+(?:the\s+)?(?:like|follow)\s+button\b|\b(?:please\s+)?(?:like|rt|retweet|repost|share)\s+(?:and|&)\s+(?:rt|retweet|repost|share|follow|subscribe)\b|\blike\s+for\s+(?:a|more|part)\b/i;
+/** A bait imperative must open a clause: start of text or line, after sentence punctuation, or after a lead-in such as "please". */
+const CLAUSE_START = String.raw`(?:^|[.!?\n;:,]\s*|\b(?:please|pls|plz|and|so|now|also|news|guys|everyone)\s+)`;
+const BAIT_ERROR_RE = new RegExp(
+  CLAUSE_START +
+    String.raw`(?:(?:like|rt|retweet|repost|share|bookmark)\s+(?:this\s+)?if\s+you\b|follow\s+(?:me|us)\s+(?:on\s+\S+\s+)?(?:for|and|to|if)\b|follow\s+for\s+(?:more|follow|updates|daily)\b|f4f\b|follow\s*4\s*follow\b|tag\s+(?:a|your|two|three|\d+)\s+(?:friends?|mates?|buddy|buddies|colleagues?|someone)\b|smash\s+that\b|hit\s+(?:the\s+)?(?:like|follow)\s+button\b|(?:like|rt|retweet|repost|share)\s+(?:and|&)\s+(?:rt|retweet|repost|share|follow|subscribe)\b|like\s+for\s+(?:a|more|part)\b)`,
+  'i',
+);
 const BAIT_WARN_RE =
   /\bcomment\s+below\b|\bdrop\s+(?:a|an|your)\s+\S+\s+(?:below|in\s+the\s+(?:comments|replies))|\bfollow\s+back\b|\bshare\s+(?:this\s+)?(?:for\s+(?:a\s+chance|more)|to\s+support)\b|\bbookmark\s+this\b|\bretweets?\s+appreciated\b/i;
 const URGENCY_RE = /🚨|\bBREAKING\b|\bURGENT\b|\blast chance\b|\bhurry\b/i;
