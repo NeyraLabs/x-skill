@@ -25,28 +25,28 @@ const MENTION_RE = /(^|\s)@[A-Za-z0-9_]{1,15}\b/g;
 const CAPS_WORD_RE = /\b[A-Z]{4,}\b/g;
 const KNOWN_ACRONYMS = /^(?:CISA|NIST|API|MCP|CVE|AI|USA|EU|UK|GDPR|HTTPS?|JSON|SQL|AWS|GPU|CPU|LLM|OSS|CEO|CTO|CFO|NASA|FBI|OWASP|SDK|CLI|HTML|CSS|NPM|IETF|RFC|ISO|SOC|HIPAA|DNS|TLS|SSH|VPN|IoT|SaaS)$/;
 /**
- * Engagement bait, two tiers. A bait imperative must open a clause: start of
- * text or line, after sentence punctuation, or after a lead-in such as
- * "please". BAIT_ERROR_RE holds phrases with no ordinary reading ("RT if you
- * agree", "follow for more", "f4f", "tag 3 friends"); they are an error.
- * BAIT_WARN_RE holds phrases that are usually bait but can be an honest
- * request ("share if you see a regression", "comment below with your CVE");
- * they are a warning for the writer to check. A regex cannot tell those
- * apart, so the error tier stays narrow on purpose.
+ * Engagement bait, two tiers, both warnings. A bait imperative must open a
+ * clause: start of text or line, after sentence punctuation, or after a
+ * lead-in such as "please". BAIT_RE holds phrases that almost never occur
+ * in prose ("RT if you agree", "follow for more", "f4f", "tag 3 friends");
+ * BAIT_CHECK_RE holds phrases that are usually bait but can be an honest
+ * request ("share if you see a regression", "comment below with your CVE").
+ * Neither tier is an error: a pattern match cannot read intent, and a lint
+ * that blocks ordinary sentences gets switched off. The writer decides.
  */
 const CLAUSE_START = String.raw`(?:^|[.!?\n;:,&+]\s*|\b(?:please|pls|plz|and|so|now|also|news|guys|everyone)\s+)`;
 const SOCIAL_VERB = String.raw`(?:like|rt|retweet|repost|share|bookmark)`;
-const BAIT_ERROR_RE = new RegExp(
+const BAIT_RE = new RegExp(
   CLAUSE_START +
     String.raw`(?:${SOCIAL_VERB}\s+(?:this\s+)?if\s+(?:you\s+)?(?:agree|relate|like\s+this|found\s+(?:this|it)\s+(?:useful|helpful)|(?:this|it)\s+helped|you\s+want\s+(?:more|part))\b` +
     String.raw`|follow\s+(?:me|us)\s+(?:on\s+\S+\s+)?(?:for\s+(?:more|updates|daily|part)|and\s+(?:rt|retweet|repost|share|like))\b` +
     String.raw`|follow\s+for\s+(?:more|follow|updates|daily|part)\b|f4f\b|follow\s*4\s*follow\b` +
-    String.raw`|tag\s+(?:a|your|two|three|\d+)\s+(?:friends?|mates?|buddy|buddies)\b` +
+    String.raw`|tag\s+(?:a|your|two|three|\d+)\s+(?:friends?|mates?|buddy|buddies)\b(?=\s*(?:[.!?,;:)]|$|who\b|that\b|if\b|and\b|below\b|in\s+the\b))` +
     String.raw`|smash\s+that\b|hit\s+(?:the\s+)?(?:like|follow)\s+button\b)` +
-    String.raw`|\b(?:please|pls|plz)\s+${SOCIAL_VERB}\s+(?:and|&)\s+(?:rt|retweet|repost|share|follow|subscribe)\b`,
+    String.raw`|\b(?:please|pls|plz)\s+${SOCIAL_VERB}\s+(?:and|&)\s+(?:rt|retweet|repost|share|follow|subscribe)\b(?=\s*(?:[.!?,;:)]|$|if\b|for\b|to\s+(?:support|help)\b))`,
   'i',
 );
-const BAIT_WARN_RE = new RegExp(
+const BAIT_CHECK_RE = new RegExp(
   CLAUSE_START +
     String.raw`(?:${SOCIAL_VERB}\s+(?:this\s+)?if\s+(?:you|this|it|that)\b|follow\s+(?:me|us)\s+(?:on\s+\S+\s+)?(?:for|if)\b` +
     String.raw`|${SOCIAL_VERB}\s+(?:and|&)\s+(?:rt|retweet|repost|share|follow|subscribe)\b(?=\s*(?:[.!?;:)]|$|if\b|for\b|please\b|this\b|to\s+(?:support|help)\b|with\s+(?:your|a)\b))` +
@@ -137,14 +137,14 @@ export function lint(text: string, opts: LintOptions = {}): Finding[] {
     push('emoji', 'warn', `${emoji} emoji; keep it to 2 or fewer.`, 'Each emoji weighs 2 characters and emoji walls are a spam signal to readers.');
   }
 
-  if (BAIT_ERROR_RE.test(trimmed)) {
+  if (BAIT_RE.test(trimmed)) {
     push(
       'bait',
-      'error',
+      'warn',
       'Engagement bait ("RT if you agree", "follow for more", "tag a friend", "smash that like button").',
       "X's rules name engagement farming as platform manipulation. In the model, bait invites the actions with negative weights (not interested, mute, report) from the readers you want to keep.",
     );
-  } else if (BAIT_WARN_RE.test(trimmed)) {
+  } else if (BAIT_CHECK_RE.test(trimmed)) {
     push(
       'bait-check',
       'warn',

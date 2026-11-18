@@ -14,7 +14,7 @@ test('over-length is an error', () => {
   assert.equal(worst(lint('x'.repeat(300))), 'error');
 });
 
-test('engagement bait is an error', () => {
+test('unambiguous engagement bait is flagged as bait', () => {
   for (const t of [
     'Like if you agree',
     'Follow for more',
@@ -34,7 +34,7 @@ test('engagement bait is an error', () => {
   }
 });
 
-test('ambiguous asks are a warning to check, not an error', () => {
+test('ambiguous asks are flagged as bait-check', () => {
   for (const t of [
     'Comment below with your CVE ID',
     'Thoughts? please comment below',
@@ -69,6 +69,7 @@ test('ordinary uses of like, follow and share are never an error', () => {
     'Rivals, as usual, follow us and copy the feature a year later.',
     'Share prices fell 4% after the report, per Reuters.',
     'Tag the release, then follow the migration guide.',
+    "We now tag your friends' photos only with consent, the company said in its update.",
     'Like for a lot of teams, our build broke on Node 22.',
     'Three actions, like and share, drive most of the ranking.',
     'Open the PR and tag your colleagues for review.',
@@ -81,6 +82,10 @@ test('ordinary uses of like, follow and share are never an error', () => {
   // prose that shares a surface form with bait gets at most a warning
   for (const t of ['Users can now like and share.', 'The new SDK exposes two calls: like and repost.', 'Read it, follow us to the next section if you want details.']) {
     assert.ok(!rules(t).includes('bait'), t);
+  }
+  // and no bait finding is ever an error
+  for (const t of ['Like if you agree', "We now tag your friends' photos only with consent, the company said.", 'Please like and subscribe buttons were removed from the SDK.']) {
+    assert.ok(!lint(t).some((f) => f.rule.startsWith('bait') && f.severity === 'error'), t);
   }
 });
 
