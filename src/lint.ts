@@ -34,23 +34,24 @@ const KNOWN_ACRONYMS = /^(?:CISA|NIST|API|MCP|CVE|AI|USA|EU|UK|GDPR|HTTPS?|JSON|
  * they are a warning for the writer to check. A regex cannot tell those
  * apart, so the error tier stays narrow on purpose.
  */
-const CLAUSE_START = String.raw`(?:^|[.!?\n;:,]\s*|\b(?:please|pls|plz|and|so|now|also|news|guys|everyone)\s+)`;
+const CLAUSE_START = String.raw`(?:^|[.!?\n;:,&+]\s*|\b(?:please|pls|plz|and|so|now|also|news|guys|everyone)\s+)`;
 const SOCIAL_VERB = String.raw`(?:like|rt|retweet|repost|share|bookmark)`;
 const BAIT_ERROR_RE = new RegExp(
   CLAUSE_START +
     String.raw`(?:${SOCIAL_VERB}\s+(?:this\s+)?if\s+(?:you\s+)?(?:agree|relate|like\s+this|found\s+(?:this|it)\s+(?:useful|helpful)|(?:this|it)\s+helped|you\s+want\s+(?:more|part))\b` +
     String.raw`|follow\s+(?:me|us)\s+(?:on\s+\S+\s+)?(?:for\s+(?:more|updates|daily|part)|and\s+(?:rt|retweet|repost|share|like))\b` +
-    String.raw`|follow\s+for\s+(?:more|follow|updates|daily)\b|f4f\b|follow\s*4\s*follow\b` +
-    String.raw`|tag\s+(?:a|your|two|three|\d+)\s+(?:friends?|mates?|buddy|buddies|colleagues?|someone)\b` +
-    String.raw`|smash\s+that\b|hit\s+(?:the\s+)?(?:like|follow)\s+button\b` +
-    String.raw`|${SOCIAL_VERB}\s+(?:and|&)\s+(?:rt|retweet|repost|share|follow|subscribe)\b(?=\s*(?:[.!?,;:)]|$|if\b|for\b|please\b|this\b|to\s+(?:support|help)\b|with\s+(?:your|a)\b))` +
-    String.raw`|like\s+for\s+(?:a|more|part)\b)`,
+    String.raw`|follow\s+for\s+(?:more|follow|updates|daily|part)\b|f4f\b|follow\s*4\s*follow\b` +
+    String.raw`|tag\s+(?:a|your|two|three|\d+)\s+(?:friends?|mates?|buddy|buddies)\b` +
+    String.raw`|smash\s+that\b|hit\s+(?:the\s+)?(?:like|follow)\s+button\b)` +
+    String.raw`|\b(?:please|pls|plz)\s+${SOCIAL_VERB}\s+(?:and|&)\s+(?:rt|retweet|repost|share|follow|subscribe)\b`,
   'i',
 );
 const BAIT_WARN_RE = new RegExp(
   CLAUSE_START +
-    String.raw`(?:${SOCIAL_VERB}\s+(?:this\s+)?if\s+(?:you|this|it|that)\b|follow\s+(?:me|us)\s+(?:on\s+\S+\s+)?(?:for|if)\b)` +
-    String.raw`|\bcomment\s+below\b|\bdrop\s+(?:a|an|your)\s+\S+\s+(?:below|in\s+the\s+(?:comments|replies))|\bfollow\s+back\b|\bshare\s+(?:this\s+)?(?:for\s+(?:a\s+chance|more)|to\s+support)\b|\bbookmark\s+this\b|\bretweets?\s+appreciated\b`,
+    String.raw`(?:${SOCIAL_VERB}\s+(?:this\s+)?if\s+(?:you|this|it|that)\b|follow\s+(?:me|us)\s+(?:on\s+\S+\s+)?(?:for|if)\b` +
+    String.raw`|${SOCIAL_VERB}\s+(?:and|&)\s+(?:rt|retweet|repost|share|follow|subscribe)\b(?=\s*(?:[.!?;:)]|$|if\b|for\b|please\b|this\b|to\s+(?:support|help)\b|with\s+(?:your|a)\b))` +
+    String.raw`|like\s+for\s+(?:more|part)\b|repost\s+to\s+spread\b)` +
+    String.raw`|\bcomment\s+below\b|\bdrop\s+(?:a|an|your)\s+\S+\s+(?:below|in\s+the\s+(?:comments|replies))|\bfollow\s+back\b|\bshare\s+(?:this\s+)?(?:for\s+(?:a\s+chance|more)|to\s+support)\b|\bbookmark\s+this\b|\bretweets?\s+appreciated\b|\brt\s+pls\b`,
   'i',
 );
 const URGENCY_RE = /🚨|\bBREAKING\b|\bURGENT\b|\blast chance\b|\bhurry\b/i;
@@ -140,14 +141,14 @@ export function lint(text: string, opts: LintOptions = {}): Finding[] {
     push(
       'bait',
       'error',
-      'Engagement bait ("RT if you agree", "follow for more", "tag a friend", "like and share" and similar).',
+      'Engagement bait ("RT if you agree", "follow for more", "tag a friend", "smash that like button").',
       "X's rules name engagement farming as platform manipulation. In the model, bait invites the actions with negative weights (not interested, mute, report) from the readers you want to keep.",
     );
   } else if (BAIT_WARN_RE.test(trimmed)) {
     push(
       'bait-check',
       'warn',
-      'Phrasing that usually reads as bait ("share if you...", "comment below", "follow back"). Keep it only if it is a real request with a concrete reason.',
+      'Phrasing that usually reads as bait ("share if you...", "like and share", "comment below", "follow back"). Keep it only if it is a real request with a concrete reason.',
       'Readers who feel farmed mute; a concrete ask ("reply with the CVE you hit") reads as conversation, a generic one as bait.',
     );
   }
